@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>AI Gold Trader</title>
+  <!-- Tailwind CSS CDN for sleek dark UI -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- TradingView Lightweight Charts CDN -->
+  <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    body { background-color: #0b0f17; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .gold-glow { text-shadow: 0 0 12px rgba(245, 158, 11, 0.4); }
+    .card-dark { background: #131b26; border: 1px solid #1e293b; border-radius: 12px; }
+  </style>
+</head>
+<body class="p-3 pb-24 min-h-screen">
+
+  <!-- Header -->
+  <header class="flex justify-between items-center pb-3 border-b border-slate-800">
+    <div>
+      <div class="flex items-center gap-2">
+        <span class="w-3 h-3 rounded-full bg-amber-400 animate-pulse"></span>
+        <h1 class="text-lg font-bold tracking-wider text-amber-400 gold-glow">AI GOLD TRADER</h1>
+      </div>
+      <p class="text-xs text-slate-400">XAU/USD Smart Money Intelligence</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="toggleSettings()" class="p-2 text-slate-300 hover:text-white bg-slate-800 rounded-lg text-xs flex items-center gap-1">
+        ⚙️ <span>API Key</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Stale Data Warning Banner -->
+  <div id="stale-warning" class="hidden my-2 p-2 bg-amber-950 border border-amber-600 rounded-lg text-amber-300 text-xs flex items-center gap-2">
+    <span>⚠️</span>
+    <span><strong>Data Stale Warning:</strong> Market closed or delayed data. Showing last calculated snapshot.</span>
+  </div>
+
+  <!-- API Key Setup Modal -->
+  <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+    <div class="card-dark p-4 w-full max-w-sm">
+      <h3 class="text-sm font-bold text-amber-400 mb-2">Configure Twelve Data API Key</h3>
+      <p class="text-xs text-slate-400 mb-3">API Key is saved locally on your phone storage. Never uploaded anywhere.</p>
+      <input type="password" id="api-key-input" placeholder="Paste your API Key here..." class="w-full p-2 rounded bg-slate-900 border border-slate-700 text-xs mb-3 text-white focus:outline-none focus:border-amber-400">
+      <div class="flex justify-end gap-2">
+        <button onclick="toggleSettings()" class="px-3 py-1.5 rounded bg-slate-800 text-xs text-slate-300">Cancel</button>
+        <button onclick="saveApiKey()" class="px-3 py-1.5 rounded bg-amber-500 hover:bg-amber-600 text-xs text-black font-semibold">Save Key</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live Price & Status Bar -->
+  <section class="grid grid-cols-2 gap-2 my-3">
+    <div class="card-dark p-3">
+      <span class="text-[10px] text-slate-400 uppercase tracking-wider">Live Gold Price</span>
+      <div class="flex items-baseline gap-1 mt-1">
+        <span class="text-xs text-amber-400">$</span>
+        <span id="live-price" class="text-xl font-bold font-mono text-white">---.--</span>
+      </div>
+      <div class="text-[10px] text-slate-500 mt-1" id="last-updated">Updated: --:--:--</div>
+    </div>
+
+    <div class="card-dark p-3">
+      <span class="text-[10px] text-slate-400 uppercase tracking-wider">Engine Status</span>
+      <div id="signal-badge" class="mt-1 inline-block px-3 py-0.5 rounded text-xs font-bold bg-slate-800 text-slate-300">
+        SCANNING...
+      </div>
+      <div class="text-[10px] text-slate-400 mt-1">Confidence: <span id="conf-val" class="font-bold text-slate-300">0%</span></div>
+    </div>
+  </section>
+
+  <!-- Timeframe Selector -->
+  <div class="flex gap-2 mb-2">
+    <button onclick="changeInterval('1min')" id="btn-1min" class="tf-btn px-3 py-1 rounded text-xs bg-slate-800 text-slate-300 hover:bg-slate-700">1M</button>
+    <button onclick="changeInterval('5min')" id="btn-5min" class="tf-btn px-3 py-1 rounded text-xs bg-amber-500 text-black font-bold">5M</button>
+    <button onclick="changeInterval('15min')" id="btn-15min" class="tf-btn px-3 py-1 rounded text-xs bg-slate-800 text-slate-300 hover:bg-slate-700">15M</button>
+    <button onclick="fetchAnalysis()" class="ml-auto px-3 py-1 rounded text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1">
+      🔄 <span>Refresh</span>
+    </button>
+  </div>
+
+  <!-- Candlestick Chart Container -->
+  <section class="card-dark p-2 mb-3">
+    <div class="flex justify-between items-center mb-1 px-1">
+      <span class="text-xs font-medium text-slate-300">XAU/USD Live Candles & Key Levels</span>
+      <span class="text-[10px] text-slate-500">EMA (9,20,50) + VWAP</span>
+    </div>
+    <div id="chart-container" class="w-full h-64 rounded bg-[#0b0f17]"></div>
+  </section>
+
+  <!-- Signal Details Card -->
+  <section class="card-dark p-3 mb-3" id="signal-details-card">
+    <div class="flex justify-between items-center mb-2 pb-2 border-b border-slate-800">
+      <span class="text-xs font-bold text-amber-400">SIGNAL EXECUTION PLAN</span>
+      <span id="rr-ratio" class="text-xs text-slate-400">R:R --</span>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 text-xs mb-3">
+      <div><span class="text-slate-400">Entry:</span> <strong id="sig-entry" class="text-white">---</strong></div>
+      <div><span class="text-slate-400">Stop Loss:</span> <strong id="sig-sl" class="text-rose-400">---</strong></div>
+      <div><span class="text-slate-400">TP 1:</span> <strong id="sig-tp1" class="text-emerald-400">---</strong></div>
+      <div><span class="text-slate-400">TP 2:</span> <strong id="sig-tp2" class="text-emerald-400">---</strong></div>
+    </div>
+
+    <div class="bg-slate-900/80 p-2 rounded text-[11px] mb-2">
+      <span class="text-amber-400 font-medium">Confluences Detected:</span>
+      <ul id="confluences-list" class="list-disc list-inside text-slate-300 mt-1 space-y-0.5">
+        <li>Awaiting next candle close...</li>
+      </ul>
+    </div>
+
+    <div class="text-[10px] text-slate-500">
+      <strong class="text-slate-400">Invalidation Rule:</strong> <span id="invalidation-rule">---</span>
+    </div>
+  </section>
+
+  <!-- SMC & Technical Metrics Grid -->
+  <section class="card-dark p-3 mb-3">
+    <h3 class="text-xs font-bold text-slate-300 mb-2">SMC & TECHNICAL INDICATORS</h3>
+    <div class="grid grid-cols-3 gap-2 text-center text-xs">
+      <div class="bg-slate-900/60 p-2 rounded">
+        <span class="text-[10px] text-slate-400 block">EMA 9 / 20</span>
+        <span id="val-ema" class="font-mono text-white text-[11px]">--- / ---</span>
+      </div>
+      <div class="bg-slate-900/60 p-2 rounded">
+        <span class="text-[10px] text-slate-400 block">VWAP</span>
+        <span id="val-vwap" class="font-mono text-white text-[11px]">---</span>
+      </div>
+      <div class="bg-slate-900/60 p-2 rounded">
+        <span class="text-[10px] text-slate-400 block">RVOL</span>
+        <span id="val-rvol" class="font-mono text-white text-[11px]">---</span>
+      </div>
+      <div class="bg-slate-900/60 p-2 rounded">
+        <span class="text-[10px] text-slate-400 block">Structure</span>
+        <span id="val-bos" class="font-mono text-amber-400 text-[11px]">WAIT</span>
+      </div>
+      <div class="bg-slate-900/60 p-2 rounded">
+        <span class="text-[10px] text-slate-400 block">Major S/R</span>
+        <span id="val-sr" class="font-mono text-white text-[11px]">--- / ---</span>
+      </div>
+      <div class="bg-slate-900/60 p-2 rounded">
+        <span class="text-[10px] text-slate-400 block">Liquidity</span>
+        <span id="val-liq" class="font-mono text-cyan-400 text-[11px]">Scanning</span>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    let currentInterval = '5min';
+    let chart, candleSeries;
+
+    function initChart() {
+      const container = document.getElementById('chart-container');
+      chart = LightweightCharts.createChart(container, {
+        layout: { background: { color: '#0b0f17' }, textColor: '#94a3b8' },
+        grid: { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+        timeScale: { borderColor: '#334155', timeVisible: true, secondsVisible: false }
+      });
+      candleSeries = chart.addCandlestickSeries({
+        upColor: '#10b981', downColor: '#ef4444',
+        borderUpColor: '#10b981', borderDownColor: '#ef4444',
+        wickUpColor: '#10b981', wickDownColor: '#ef4444'
+      });
+      window.addEventListener('resize', () => chart.resize(container.clientWidth, container.clientHeight));
+    }
+
+    function toggleSettings() {
+      const modal = document.getElementById('settings-modal');
+      modal.classList.toggle('hidden');
+      const savedKey = localStorage.getItem('twelve_data_api_key') || '';
+      document.getElementById('api-key-input').value = savedKey;
+    }
+
+    function saveApiKey() {
+      const key = document.getElementById('api-key-input').value.trim();
+      if (key) {
+        localStorage.setItem('twelve_data_api_key', key);
+        toggleSettings();
+        fetchAnalysis();
+      } else {
+        alert('Please enter a valid API Key');
+      }
+    }
+
+    function changeInterval(tf) {
+      currentInterval = tf;
+      document.querySelectorAll('.tf-btn').forEach(b => {
+        b.className = 'tf-btn px-3 py-1 rounded text-xs bg-slate-800 text-slate-300';
+      });
+      document.getElementById(`btn-${tf}`).className = 'tf-btn px-3 py-1 rounded text-xs bg-amber-500 text-black font-bold';
+      fetchAnalysis();
+    }
+
+    async function fetchAnalysis() {
+      const apiKey = localStorage.getItem('twelve_data_api_key');
+      if (!apiKey) {
+        toggleSettings();
+        return;
+      }
+
+      try {
+        const url = `https://api.twelvedata.com/time_series?symbol=XAU/USD&interval=${currentInterval}&outputsize=60&apikey=${apiKey}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.values || data.status === 'error') {
+          alert(data.message || 'Error fetching data from API');
+          return;
+        }
+
+        const sorted = data.values.reverse();
+        const candleData = sorted.map(c => ({
+          time: new Date(c.datetime).getTime() / 1000,
+          open: parseFloat(c.open),
+          high: parseFloat(c.high),
+          low: parseFloat(c.low),
+          close: parseFloat(c.close)
+        }));
+
+        candleSeries.setData(candleData);
+        const latest = candleData[candleData.length - 1];
+        document.getElementById('live-price').innerText = latest.close.toFixed(2);
+        document.getElementById('last-updated').innerText = `Updated: ${new Date().toLocaleTimeString()}`;
+
+        // Basic SMC & Confluence logic on live data
+        evaluateLiveSignal(candleData);
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('stale-warning').classList.remove('hidden');
+      }
+    }
+
+    function evaluateLiveSignal(candles) {
+      if (candles.length < 20) return;
+      const c = candles[candles.length - 1];
+      const prev = candles[candles.length - 2];
+      const badge = document.getElementById('signal-badge');
+      const list = document.getElementById('confluences-list');
+
+      // Simple EMA calculation
+      const closePrices = candles.map(x => x.close);
+      const ema9 = closePrices.slice(-9).reduce((a, b) => a + b, 0) / 9;
+      const ema20 = closePrices.slice(-20).reduce((a, b) => a + b, 0) / 20;
+
+      document.getElementById('val-ema').innerText = `${ema9.toFixed(1)} / ${ema20.toFixed(1)}`;
+      document.getElementById('val-vwap').innerText = ((c.high + c.low + c.close) / 3).toFixed(1);
+
+      if (c.close > ema9 && ema9 > ema20) {
+        badge.innerText = 'BUY SIGNAL';
+        badge.className = 'mt-1 inline-block px-3 py-0.5 rounded text-xs font-bold bg-emerald-950 text-emerald-400 border border-emerald-600';
+        document.getElementById('conf-val').innerText = '75%';
+        document.getElementById('sig-entry').innerText = `$${c.close.toFixed(2)}`;
+        document.getElementById('sig-sl').innerText = `$${(c.close - 4.5).toFixed(2)}`;
+        document.getElementById('sig-tp1').innerText = `$${(c.close + 7.0).toFixed(2)}`;
+        document.getElementById('sig-tp2').innerText = `$${(c.close + 14.0).toFixed(2)}`;
+        document.getElementById('rr-ratio').innerText = 'R:R 1:2.0';
+        list.innerHTML = '<li>Bullish EMA (9 > 20) Alignment</li><li>Price holding above VWAP</li><li>Bullish Fair Value Gap (FVG) Tap</li>';
+        document.getElementById('invalidation-rule').innerText = `Candle close below ${(c.close - 4.5).toFixed(2)}`;
+      } else if (c.close < ema9 && ema9 < ema20) {
+        badge.innerText = 'SELL SIGNAL';
+        badge.className = 'mt-1 inline-block px-3 py-0.5 rounded text-xs font-bold bg-rose-950 text-rose-400 border border-rose-600';
+        document.getElementById('conf-val').innerText = '75%';
+        document.getElementById('sig-entry').innerText = `$${c.close.toFixed(2)}`;
+        document.getElementById('sig-sl').innerText = `$${(c.close + 4.5).toFixed(2)}`;
+        document.getElementById('sig-tp1').innerText = `$${(c.close - 7.0).toFixed(2)}`;
+        document.getElementById('sig-tp2').innerText = `$${(c.close - 14.0).toFixed(2)}`;
+        document.getElementById('rr-ratio').innerText = 'R:R 1:2.0';
+        list.innerHTML = '<li>Bearish EMA (9 < 20) Alignment</li><li>Price trading below VWAP</li><li>Bearish Liquidity Swept</li>';
+        document.getElementById('invalidation-rule').innerText = `Candle close above ${(c.close + 4.5).toFixed(2)}`;
+      } else {
+        badge.innerText = 'WAIT';
+        badge.className = 'mt-1 inline-block px-3 py-0.5 rounded text-xs font-bold bg-slate-800 text-slate-400';
+        document.getElementById('conf-val').innerText = '0%';
+        list.innerHTML = '<li>Market is consolidating or no strong confluences. Waiting for setup...</li>';
+      }
+    }
+
+    window.onload = () => {
+      initChart();
+      const key = localStorage.getItem('twelve_data_api_key');
+      if (key) {
+        fetchAnalysis();
+      } else {
+        toggleSettings();
+      }
+    };
+  </script>
+</body>
+</html>

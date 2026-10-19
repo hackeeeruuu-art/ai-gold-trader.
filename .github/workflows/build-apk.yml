@@ -25,9 +25,6 @@ jobs:
           distribution: 'zulu'
           java-version: 17
 
-      - name: Setup Android SDK Tools
-        uses: android-actions/setup-android@v3
-
       - name: Build Web Assets & Generate Android APK
         run: |
           mkdir -p dist
@@ -39,7 +36,7 @@ jobs:
           npx cap sync android
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
